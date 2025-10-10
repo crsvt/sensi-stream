@@ -31,7 +31,7 @@ expiries.forEach((expiry) => {
 
         const expiries = lib.expiries();
 
-        lib.instruments().forEach(i => {
+        lib.instruments.forEach(i => {
 
             scrips.push(
                 { "underlying": i, "expiry": expiry },

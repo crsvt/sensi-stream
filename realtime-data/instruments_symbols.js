@@ -1,4 +1,4 @@
-const instruments =  [
+export const instruments =  [
         {
             "instrument_token": 3017473,
             "name": "GOYAL ALUMINIUMS LIMITED",
