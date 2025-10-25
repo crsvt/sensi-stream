@@ -87,9 +87,22 @@ function connect(instruments, expiries) {
             if (message.kind === 'OPTION_CHAIN') {
                 // This is the data we want, so clear the timeout.
                 clearTimeout(noDataTimeout);
-                console.log(`✅ [${new Date().toLocaleTimeString()}] Decoded OPTION_CHAIN for token: ${message.token}`);
-                const filePath = path.join(DATA_DIR, `${message.token}-${message.expiry}.json`);
-                fs.writeFileSync(filePath, JSON.stringify(message.payload, null, 2));
+
+                // --- MODIFICATION START ---
+                const { payload, token, expiry } = message;
+                const { future_price, atm_strike, pcr, max_pain_strike, atm_iv } = payload;
+
+                // Provide a richer, more insightful log message to the console
+                console.log(
+                    `✅ [${new Date().toLocaleTimeString()}] Chain for ${token}: ` +
+                    `Future: ${future_price}, ATM: ${atm_strike}, IV: ${(atm_iv * 100).toFixed(2)}%, PCR: ${pcr}, Max Pain: ${max_pain_strike}`
+                );
+                
+                const filePath = path.join(DATA_DIR, `${token}-${expiry}.json`);
+                // Save the full payload as before
+                fs.writeFileSync(filePath, JSON.stringify(payload, null, 2));
+                // --- MODIFICATION END ---
+
             } else {
                 // Log other valid packets we are receiving.
                 console.log(`-> Received packet of type: ${message.kind}`);
