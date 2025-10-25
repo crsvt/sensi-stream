@@ -11,6 +11,7 @@ This project provides a stable and efficient command-line interface to connect t
 ### Key Features
 
 -   **Real-time Data**: Captures live options chain data, including prices, greeks, and OI.
+-   **Flexible Configuration**: Easily configure instruments and expiry types via a simple `config.js` file—no more hardcoding.
 -   **Cross-Platform**: Built to run flawlessly on Windows, macOS, and Linux.
 -   **Modern & Maintainable**: A complete refactor with a clean, modular architecture for easy extension.
 -   **Efficient & Reliable**: Uses the battle-tested `pako` library for fast zlib decompression.
@@ -46,11 +47,22 @@ Full credit for deciphering the WebSocket protocol and initial data structures g
 
 ### Usage
 
-1.  **(Optional) Configure Instruments:**
-    Before running, you can customize which instruments to track by editing the `INSTRUMENTS_TO_TRACK` array in `src/index.js`.
+1.  **Configure Your Settings:**
+    Before your first run, open the `config.js` file in the main directory and customize your settings. By default, the tool tracks NIFTY for the nearest weekly expiry.
+
     ```javascript
-    // src/index.js
-    const INSTRUMENTS_TO_TRACK =; // NIFTY & BANKNIFTY by default
+    // config.js
+    module.exports = {
+      // --- Instrument Settings ---
+      // Set to true to track an instrument, false to disable.
+      track_nifty: true,
+      track_banknifty: false,
+
+      // --- Expiry Settings ---
+      // The application will track the closest expiry from all enabled types.
+      track_weekly_expiry: true,
+      track_monthly_expiry: false,
+    };
     ```
 
 2.  **Run the application:**
@@ -58,7 +70,7 @@ Full credit for deciphering the WebSocket protocol and initial data structures g
     npm start
     ```
 
-The tool will connect to the WebSocket and begin streaming data. You will see real-time updates in your console, and the corresponding JSON files will be created/updated in the `/data` directory.
+The tool will connect to the WebSocket and begin streaming data based on your configuration. You will see real-time summary updates in your console, and the corresponding JSON files will be created in the `/data` directory.
 
 ---
 
@@ -68,9 +80,9 @@ This project aims to evolve into a powerful tool for traders. The following feat
 
 #### Current To-Do List
 
+-   [x] **Improve Configuration**: Allow instruments and settings to be configured via a `.env` file or config file instead of hardcoding.
 -   [ ] **Enhance Error Handling**: Implement more resilient WebSocket connection logic with automatic retries.
 -   [ ] **Optimize Data Storage**: Move from simple JSON overwrites to a more performant data-appending mechanism or database integration.
--   [ ] **Improve Configuration**: Allow instruments and settings to be configured via a `.env` file instead of hardcoding.
 -   [ ] **Add More Data Sources**: Decode other packet types from the WebSocket, such as `UNDERLYING_STATS` and `QUOTE`.
 -   [ ] **Web-based Dashboard**: Create a simple web interface for visualizing the real-time data.
 
@@ -85,10 +97,11 @@ This project aims to evolve into a powerful tool for traders. The following feat
 
 ### How It Works
 
--   **`src/index.js`**: The main application entry point.
+-   **`config.js`**: The main configuration file where you set which instruments and expiries to track.
+-   **`src/index.js`**: The main application entry point. It reads `config.js` and starts the connection.
 -   **`src/websocketClient.js`**: Manages the WebSocket lifecycle, subscriptions, and message handling.
--   **`src/dataDecoder.js`**: Responsible for the crucial task of decoding the binary WebSocket messages into structured JSON.
--   **`src/utils.js`**: Contains helper functions for tasks like calculating expiry dates.
+-   **`src/dataDecoder.js`**: Responsible for decoding the binary WebSocket messages into structured JSON.
+-   **`src/utils.js`**: Contains helper functions for calculating weekly and monthly expiry dates.
 
 ### Contributing
 
