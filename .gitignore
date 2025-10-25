@@ -1,3 +1,19 @@
-scrapped_data
-node_modules
-.data
+# macOS Finder specific files
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Dependencies
+/node_modules
+
+# Output data
+/data/*.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
