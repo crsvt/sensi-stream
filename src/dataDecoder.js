@@ -1,32 +1,22 @@
 const pako = require('pako');
 
-// Constants for packet types from reverse-engineering
+// --- UPDATED: Added more packet types we now expect ---
 const PACKET_TYPES = {
+    INVALID: 0,
+    QUOTE: 1,
     OPTION_CHAIN: 3,
     UNDERLYING_STATS: 5,
-    QUOTE: 1,
 };
 
-/**
- * Decodes a binary buffer into an integer.
- * @param {Buffer} buffer The buffer to decode.
- * @returns {number} The decoded integer.
- */
 function bufferToInt(buffer) {
     return buffer.readUInt32LE(0);
 }
 
-/**
- * Decodes the option chain packet.
- * @param {Buffer} data The binary data slice for this packet.
- * @returns {object} The decoded option chain data.
- */
 function decodeOptionChain(data) {
     const token = bufferToInt(data.slice(0, 4));
     const expiryDateRaw = data.slice(4, 12).toString('utf-8');
     const expiry = `${expiryDateRaw.slice(0, 4)}-${expiryDateRaw.slice(4, 6)}-${expiryDateRaw.slice(6, 8)}`;
     
-    // Decompress the rest of the payload
     const compressedData = data.slice(12);
     const decompressedData = pako.inflate(compressedData, { to: 'string' });
     const payload = JSON.parse(decompressedData);
@@ -34,13 +24,12 @@ function decodeOptionChain(data) {
     return { token, expiry, payload };
 }
 
-/**
- * Main function to decode incoming WebSocket binary messages.
- * @param {Buffer} binaryData The raw binary data from the WebSocket.
- * @returns {object|null} A structured object with the decoded data or null if unknown.
- */
 function decode(binaryData) {
     const data = Buffer.from(binaryData);
+    if (data.length <= 1) {
+        // Not enough data to be a meaningful packet for us
+        return null;
+    }
     const packetId = data[0];
 
     switch (packetId) {
@@ -57,9 +46,15 @@ function decode(binaryData) {
                 return null;
             }
 
-        // Add cases for other packet types like UNDERLYING_STATS and QUOTE here if needed.
-        // For now, we focus on the primary goal.
+        // --- NEW: Handle other packet types to improve logging ---
+        case PACKET_TYPES.QUOTE:
+            // We don't need to decode this for now, just acknowledge it.
+            return { kind: 'QUOTE', packetId: packetId, payload: 'Binary Quote Data' };
 
+        case PACKET_TYPES.UNDERLYING_STATS:
+            // We don't need to decode this for now, just acknowledge it.
+            return { kind: 'UNDERLYING_STATS', packetId: packetId, payload: 'Stats Data' };
+        
         default:
             // console.warn(`Unknown packet ID received: ${packetId}`);
             return null;
