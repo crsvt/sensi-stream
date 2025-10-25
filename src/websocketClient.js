@@ -2,6 +2,7 @@ const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
 const { decode } = require('./dataDecoder');
+const { broadcastData } = require('./webServer'); // <-- NEW: Import broadcast function
 
 const WEBSOCKET_URL = 'https://wsrelay.sensibull.com/broker/1?consumerType=platform_pro';
 
@@ -75,22 +76,19 @@ function connect(instruments, expiries, config) {
                 const filePath = path.join(DATA_DIR, `${token}-${expiry}.json`);
                 try {
                     fs.writeFileSync(filePath, JSON.stringify(payload, null, 2));
+                    // --- NEW: Broadcast the new data to the web dashboard ---
+                    broadcastData(payload, filePath);
                 } catch (error) {
                     console.error(`❌ Failed to write data to file: ${filePath}`, error);
                 }
                 break;
 
             case 'QUOTE':
-                // --- FINAL VERSION: Log the full data from the quote packet ---
                 console.log(
                     `⚡️ [${new Date().toLocaleTimeString()}] Quote for ${message.token}: ` +
                     `LTP: ${message.ltp.toFixed(2)} | O: ${message.open} H: ${message.high} L: ${message.low} C: ${message.close}`
                 );
                 break;
-
-            // We no longer need to log the UNDERLYING_STATS packet as it's not the OHLC data.
-            // case 'UNDERLYING_STATS':
-            //     break;
         }
     });
 

@@ -1,22 +1,21 @@
-# sensi-stream
+# Sensi-Stream
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.md)
 
-A modern, cross-platform Node.js tool for streaming real-time options chain data from Sensibull.
+A modern, cross-platform Node.js tool for streaming real-time options chain data from Sensibull and visualizing it in a powerful, live-updating web dashboard.
 
-This project provides a stable and efficient command-line interface to connect to Sensibull's undocumented WebSocket API. It decodes the complex binary data stream in real-time and saves the options chain information as structured, human-readable JSON files, enabling developers and traders to build custom analysis tools and trading algorithms.
+This project provides a stable and efficient command-line tool that connects to Sensibull's undocumented WebSocket API, decodes the complex binary data stream in real-time, and presents it in a feature-rich web interface. The dashboard automatically analyzes key metrics to generate market sentiment signals, helping traders make more informed decisions.
 
 ---
 
 ### Key Features
 
--   **Real-time Data**: Captures live options chain data, including prices, greeks, and OI.
--   **Flexible Configuration**: Easily configure instruments and expiry types via a simple `config.js` file—no more hardcoding.
--   **Cross-Platform**: Built to run flawlessly on Windows, macOS, and Linux.
--   **Modern & Maintainable**: A complete refactor with a clean, modular architecture for easy extension.
--   **Efficient & Reliable**: Uses the battle-tested `pako` library for fast zlib decompression.
--   **File-based Output**: Saves data in a simple, accessible JSON format in the `/data` directory.
--   **Lightweight**: Minimal dependencies, focused on performance and stability.
+-   **Real-time Web Dashboard**: No more reading JSON files! The tool automatically opens a dashboard in your browser to visualize key metrics (Future Price, ATM Strike, PCR, IV) in a clean, grid-based layout.
+-   **Automated Sentiment Analysis**: The dashboard analyzes the Put-Call Ratio (PCR) in real-time to generate a clear market sentiment signal (Bullish, Bearish, or Neutral), suggesting whether to focus on CALLs or PUTs.
+-   **Live & On-Demand Data**: The dashboard updates in real-time during market hours. When the market is closed, it serves the last available data, allowing for analysis anytime.
+-   **Cross-Platform & Auto-Open**: Built to run flawlessly on Windows, macOS, and Linux. It automatically launches the dashboard upon starting.
+-   **Flexible Configuration**: Easily configure instruments (NIFTY, BANKNIFTY) and expiry types (weekly, monthly) via a simple `config.js` file.
+-   **Efficient & Reliable**: Uses the battle-tested `pako` library for fast zlib decompression and includes robust auto-reconnect logic for the WebSocket connection.
 
 ### Acknowledgements
 
@@ -31,6 +30,7 @@ Full credit for deciphering the WebSocket protocol and initial data structures g
 #### Prerequisites
 
 -   [Node.js](https://nodejs.org/) (v16.x or newer is recommended)
+-   NPM (comes with Node.js)
 
 #### Installation
 
@@ -48,17 +48,15 @@ Full credit for deciphering the WebSocket protocol and initial data structures g
 ### Usage
 
 1.  **Configure Your Settings:**
-    Before your first run, open the `config.js` file in the main directory and customize your settings. By default, the tool tracks NIFTY for the nearest weekly expiry.
+    Before your first run, open the `config.js` file and customize your settings. By default, the tool tracks NIFTY for the nearest weekly expiry.
 
     ```javascript
     // config.js
     module.exports = {
-      // --- Instrument Settings ---
       // Set to true to track an instrument, false to disable.
       track_nifty: true,
       track_banknifty: false,
 
-      // --- Expiry Settings ---
       // The application will track the closest expiry from all enabled types.
       track_weekly_expiry: true,
       track_monthly_expiry: false,
@@ -70,7 +68,7 @@ Full credit for deciphering the WebSocket protocol and initial data structures g
     npm start
     ```
 
-The tool will connect to the WebSocket and begin streaming data based on your configuration. You will see real-time summary updates in your console, and the corresponding JSON files will be created in the `/data` directory.
+    Your default web browser will automatically open the Sensi-Stream Dashboard at `http://localhost:3000`. Your terminal will show detailed connection logs, while the dashboard will display the live analytical data.
 
 ---
 
@@ -82,9 +80,9 @@ This project aims to evolve into a powerful tool for traders. The following feat
 
 -   [x] **Improve Configuration**: Allow instruments and settings to be configured via a `.env` file or config file instead of hardcoding.
 -   [x] **Enhance Error Handling**: Implement more resilient WebSocket connection logic with automatic retries.
--   [ ] **Optimize Data Storage**: Move from simple JSON overwrites to a more performant data-appending mechanism or database integration.
+-   [x] **Web-based Dashboard**: Implemented a dashboard with real-time updates via WebSockets and automated sentiment analysis.
 -   [x] **Add More Data Sources**: Decode other packet types from the WebSocket, such as `UNDERLYING_STATS` and `QUOTE`.
--   [ ] **Web-based Dashboard**: Create a simple web interface for visualizing the real-time data.
+-   [ ] **Optimize Data Storage**: Move from simple JSON overwrites to a more performant data-appending mechanism or database integration.
 
 #### Future Integrations
 
@@ -98,10 +96,12 @@ This project aims to evolve into a powerful tool for traders. The following feat
 ### How It Works
 
 -   **`config.js`**: The main configuration file where you set which instruments and expiries to track.
--   **`src/index.js`**: The main application entry point. It reads `config.js` and starts the connection.
--   **`src/websocketClient.js`**: Manages the WebSocket lifecycle, subscriptions, and message handling.
+-   **`src/index.js`**: The main application entry point. It reads `config.js`, starts the web server, and initiates the WebSocket connection.
+-   **`src/websocketClient.js`**: Manages the WebSocket lifecycle to Sensibull, subscriptions, and message handling. It now also broadcasts data to the dashboard.
 -   **`src/dataDecoder.js`**: Responsible for decoding the binary WebSocket messages into structured JSON.
 -   **`src/utils.js`**: Contains helper functions for calculating weekly and monthly expiry dates.
+-   **`src/webServer.js`**: Initializes an Express server and a local WebSocket to broadcast data to the web dashboard.
+-   **`public/index.html`**: The frontend dashboard page that visualizes the data and displays analytical signals.
 
 ### Contributing
 
