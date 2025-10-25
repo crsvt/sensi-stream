@@ -81,7 +81,7 @@ This project aims to evolve into a powerful tool for traders. The following feat
 #### Current To-Do List
 
 -   [x] **Improve Configuration**: Allow instruments and settings to be configured via a `.env` file or config file instead of hardcoding.
--   [ ] **Enhance Error Handling**: Implement more resilient WebSocket connection logic with automatic retries.
+-   [x] **Enhance Error Handling**: Implement more resilient WebSocket connection logic with automatic retries.
 -   [ ] **Optimize Data Storage**: Move from simple JSON overwrites to a more performant data-appending mechanism or database integration.
 -   [ ] **Add More Data Sources**: Decode other packet types from the WebSocket, such as `UNDERLYING_STATS` and `QUOTE`.
 -   [ ] **Web-based Dashboard**: Create a simple web interface for visualizing the real-time data.

@@ -11,55 +11,48 @@ const HEADERS = {
     'Origin': 'https://web.sensibull.com'
 };
 
-let noDataTimeout;
+// --- NEW: Configuration for the retry mechanism ---
+const RETRY_CONFIG = {
+    maxRetries: 10,           // Maximum number of reconnection attempts.
+    initialDelay: 2000,       // Initial delay in ms (2 seconds).
+    maxDelay: 60000,          // Maximum delay in ms (1 minute).
+};
 
-// --- MODIFIED: Function now accepts the config object ---
+let retryCount = 0;
+let noDataTimeout;
+let ws; // --- NEW: Make 'ws' accessible in the module scope for reconnection.
+
+/**
+ * --- MODIFIED: Main function to start and manage the WebSocket connection. ---
+ * This function now handles the entire lifecycle, including initial connection and reconnections.
+ */
 function connect(instruments, expiries, config) {
-    // --- MODIFIED: Data directory is now set from the config ---
+    // Ensure the data directory exists.
     const DATA_DIR = path.resolve(__dirname, '..', config.data_directory);
     if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
     }
 
-    const ws = new WebSocket(WEBSOCKET_URL, { headers: HEADERS });
+    if (retryCount === 0) {
+        console.log("🚀 Attempting to connect to WebSocket...");
+    }
+    
+    ws = new WebSocket(WEBSOCKET_URL, { headers: HEADERS });
 
     ws.on('open', () => {
         console.log('✅ WebSocket connection established.');
+        retryCount = 0; // Reset retry counter on a successful connection.
         clearTimeout(noDataTimeout);
 
-        // --- MODIFIED: Use the first (closest) expiry date from the sorted list ---
         const targetExpiry = expiries[0];
         if (!targetExpiry) {
             console.error('❌ No expiry date found. Exiting.');
             ws.close();
             return;
         }
-
-        // Subscribe to Underlying Stats
-        const statsSub = {
-            "msgCommand": "subscribe", "dataSource": "underlying-stats", "brokerId": 1,
-            "tokens": instruments, "underlyingExpiry": [], "uniqueId": ""
-        };
-        console.log("--> Sending 'underlying-stats' subscription...");
-        ws.send(JSON.stringify(statsSub));
-
-        // Subscribe to Quote Binary
-        const quoteSub = {
-            "msgCommand": "subscribe", "dataSource": "quote-binary", "brokerId": 1,
-            "tokens": instruments, "underlyingExpiry": [], "uniqueId": ""
-        };
-        console.log("--> Sending 'quote-binary' subscription...");
-        ws.send(JSON.stringify(quoteSub));
-
-        // Subscribe to Option Chain for the target expiry
-        const optionChainSub = {
-            "msgCommand": "subscribe", "dataSource": "option-chain", "brokerId": 1,
-            "tokens": [],
-            "underlyingExpiry": instruments.map(inst => ({ "underlying": inst, "expiry": targetExpiry })),
-            "uniqueId": ""
-        };
-        console.log(`--> Sending 'option-chain' subscription for closest expiry: ${targetExpiry}...`);
-        ws.send(JSON.stringify(optionChainSub));
+        
+        // Subscribe to all required data sources.
+        subscribeToData(instruments, targetExpiry);
 
         noDataTimeout = setTimeout(() => {
             console.warn('🕒 No option chain data received after 30 seconds. Is the market open?');
@@ -67,7 +60,8 @@ function connect(instruments, expiries, config) {
     });
     
     ws.on('ping', () => {
-        console.log('Received ping from server. Sending pong.');
+        // This is a frequent message, so it's commented out to keep the log clean.
+        // console.log('Received ping from server. Sending pong.');
         ws.pong();
     });
 
@@ -86,22 +80,72 @@ function connect(instruments, expiries, config) {
                 );
                 
                 const filePath = path.join(DATA_DIR, `${token}-${expiry}.json`);
-                fs.writeFileSync(filePath, JSON.stringify(payload, null, 2));
+                // --- SECURE HANDLING: Use try-catch for file operations ---
+                try {
+                    fs.writeFileSync(filePath, JSON.stringify(payload, null, 2));
+                } catch (error) {
+                    console.error(`❌ Failed to write data to file: ${filePath}`, error);
+                }
             } else {
-                console.log(`-> Received packet of type: ${message.kind}`);
+                // To avoid clutter, we don't log every non-chain packet by default.
+                // console.log(`-> Received packet of type: ${message.kind}`);
             }
         }
     });
 
+    // --- MODIFIED: Enhanced 'close' event handler to trigger reconnection. ---
     ws.on('close', (code, reason) => {
         console.log(`🔌 WebSocket connection closed. Code: ${code}, Reason: ${String(reason)}`);
         clearTimeout(noDataTimeout);
+        handleReconnect(instruments, expiries, config);
     });
 
+    // --- MODIFIED: Enhanced 'error' event handler. ---
     ws.on('error', (error) => {
         console.error('❌ WebSocket error:', error.message);
         clearTimeout(noDataTimeout);
+        // The 'close' event will usually fire immediately after 'error', 
+        // so we let the 'close' handler manage the reconnection logic to avoid duplication.
+        ws.terminate(); // Forcefully close the connection to trigger the 'close' event.
     });
 }
+
+/**
+ * --- NEW: Logic for sending subscriptions. ---
+ * Extracted for clarity and reuse upon reconnection.
+ */
+function subscribeToData(instruments, targetExpiry) {
+    const subscriptions = [
+        { "msgCommand": "subscribe", "dataSource": "underlying-stats", "brokerId": 1, "tokens": instruments, "underlyingExpiry": [], "uniqueId": "" },
+        { "msgCommand": "subscribe", "dataSource": "quote-binary", "brokerId": 1, "tokens": instruments, "underlyingExpiry": [], "uniqueId": "" },
+        { "msgCommand": "subscribe", "dataSource": "option-chain", "brokerId": 1, "tokens": [], "underlyingExpiry": instruments.map(inst => ({ "underlying": inst, "expiry": targetExpiry })), "uniqueId": "" }
+    ];
+
+    subscriptions.forEach(sub => {
+        console.log(`--> Sending '${sub.dataSource}' subscription for expiry ${targetExpiry}...`);
+        ws.send(JSON.stringify(sub));
+    });
+}
+
+/**
+ * --- NEW: Secure reconnection handler with exponential backoff. ---
+ */
+function handleReconnect(instruments, expiries, config) {
+    if (retryCount >= RETRY_CONFIG.maxRetries) {
+        console.error(`❌ Maximum retry limit (${RETRY_CONFIG.maxRetries}) reached. Giving up.`);
+        return;
+    }
+
+    retryCount++;
+    // Exponential backoff formula: delay * 2^retries, with a cap.
+    const delay = Math.min(RETRY_CONFIG.initialDelay * Math.pow(2, retryCount - 1), RETRY_CONFIG.maxDelay);
+    
+    console.log(`Retrying connection in ${delay / 1000} seconds... (Attempt ${retryCount}/${RETRY_CONFIG.maxRetries})`);
+
+    setTimeout(() => {
+        connect(instruments, expiries, config);
+    }, delay);
+}
+
 
 module.exports = { connect };
