@@ -11,20 +11,23 @@ const HEADERS = {
     'Origin': 'https://web.sensibull.com'
 };
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR);
-}
-
 let noDataTimeout;
 
-function connect(instruments, expiries) {
+// --- MODIFIED: Function now accepts the config object ---
+function connect(instruments, expiries, config) {
+    // --- MODIFIED: Data directory is now set from the config ---
+    const DATA_DIR = path.resolve(__dirname, '..', config.data_directory);
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+
     const ws = new WebSocket(WEBSOCKET_URL, { headers: HEADERS });
 
     ws.on('open', () => {
         console.log('✅ WebSocket connection established.');
         clearTimeout(noDataTimeout);
 
+        // --- MODIFIED: Use the first (closest) expiry date from the sorted list ---
         const targetExpiry = expiries[0];
         if (!targetExpiry) {
             console.error('❌ No expiry date found. Exiting.');
@@ -32,42 +35,30 @@ function connect(instruments, expiries) {
             return;
         }
 
-        // --- NEW: Subscribe to all three required data sources ---
-
-        // 1. Subscribe to Underlying Stats
+        // Subscribe to Underlying Stats
         const statsSub = {
-            "msgCommand": "subscribe",
-            "dataSource": "underlying-stats",
-            "brokerId": 1,
-            "tokens": instruments,
-            "underlyingExpiry": [],
-            "uniqueId": ""
+            "msgCommand": "subscribe", "dataSource": "underlying-stats", "brokerId": 1,
+            "tokens": instruments, "underlyingExpiry": [], "uniqueId": ""
         };
         console.log("--> Sending 'underlying-stats' subscription...");
         ws.send(JSON.stringify(statsSub));
 
-        // 2. Subscribe to Quote Binary
+        // Subscribe to Quote Binary
         const quoteSub = {
-            "msgCommand": "subscribe",
-            "dataSource": "quote-binary",
-            "brokerId": 1,
-            "tokens": instruments,
-            "underlyingExpiry": [],
-            "uniqueId": ""
+            "msgCommand": "subscribe", "dataSource": "quote-binary", "brokerId": 1,
+            "tokens": instruments, "underlyingExpiry": [], "uniqueId": ""
         };
         console.log("--> Sending 'quote-binary' subscription...");
         ws.send(JSON.stringify(quoteSub));
 
-        // 3. Subscribe to Option Chain
+        // Subscribe to Option Chain for the target expiry
         const optionChainSub = {
-            "msgCommand": "subscribe",
-            "dataSource": "option-chain",
-            "brokerId": 1,
+            "msgCommand": "subscribe", "dataSource": "option-chain", "brokerId": 1,
             "tokens": [],
             "underlyingExpiry": instruments.map(inst => ({ "underlying": inst, "expiry": targetExpiry })),
             "uniqueId": ""
         };
-        console.log(`--> Sending 'option-chain' subscription for expiry: ${targetExpiry}...`);
+        console.log(`--> Sending 'option-chain' subscription for closest expiry: ${targetExpiry}...`);
         ws.send(JSON.stringify(optionChainSub));
 
         noDataTimeout = setTimeout(() => {
@@ -85,26 +76,18 @@ function connect(instruments, expiries) {
         
         if (message) {
             if (message.kind === 'OPTION_CHAIN') {
-                // This is the data we want, so clear the timeout.
                 clearTimeout(noDataTimeout);
-
-                // --- MODIFICATION START ---
                 const { payload, token, expiry } = message;
                 const { future_price, atm_strike, pcr, max_pain_strike, atm_iv } = payload;
-
-                // Provide a richer, more insightful log message to the console
+                
                 console.log(
                     `✅ [${new Date().toLocaleTimeString()}] Chain for ${token}: ` +
                     `Future: ${future_price}, ATM: ${atm_strike}, IV: ${(atm_iv * 100).toFixed(2)}%, PCR: ${pcr}, Max Pain: ${max_pain_strike}`
                 );
                 
                 const filePath = path.join(DATA_DIR, `${token}-${expiry}.json`);
-                // Save the full payload as before
                 fs.writeFileSync(filePath, JSON.stringify(payload, null, 2));
-                // --- MODIFICATION END ---
-
             } else {
-                // Log other valid packets we are receiving.
                 console.log(`-> Received packet of type: ${message.kind}`);
             }
         }
