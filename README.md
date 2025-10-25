@@ -14,7 +14,7 @@ This project provides a stable and efficient command-line tool that connects to 
 -   **Automated Sentiment Analysis**: The dashboard analyzes the Put-Call Ratio (PCR) in real-time to generate a clear market sentiment signal (Bullish, Bearish, or Neutral), suggesting whether to focus on CALLs or PUTs.
 -   **Live & On-Demand Data**: The dashboard updates in real-time during market hours. When the market is closed, it serves the last available data, allowing for analysis anytime.
 -   **Cross-Platform & Auto-Open**: Built to run flawlessly on Windows, macOS, and Linux. It automatically launches the dashboard upon starting.
--   **Flexible Configuration**: Easily configure instruments (NIFTY, BANKNIFTY) and expiry types (weekly, monthly) via a simple `config.js` file.
+-   **Flexible Configuration**: Easily configure instruments (NIFTY, BANKNIFTY), expiry types (weekly, monthly), and even enable/disable the web dashboard via a simple `config.js` file.
 -   **Efficient & Reliable**: Uses the battle-tested `pako` library for fast zlib decompression and includes robust auto-reconnect logic for the WebSocket connection.
 
 ### Acknowledgements
@@ -48,7 +48,7 @@ Full credit for deciphering the WebSocket protocol and initial data structures g
 ### Usage
 
 1.  **Configure Your Settings:**
-    Before your first run, open the `config.js` file and customize your settings. By default, the tool tracks NIFTY for the nearest weekly expiry.
+    Before your first run, open the `config.js` file and customize your settings. You can track instruments, set expiry types, and now also enable or disable the web dashboard.
 
     ```javascript
     // config.js
@@ -60,15 +60,25 @@ Full credit for deciphering the WebSocket protocol and initial data structures g
       // The application will track the closest expiry from all enabled types.
       track_weekly_expiry: true,
       track_monthly_expiry: false,
+      
+      // --- Dashboard Settings ---
+      // Set to true to enable the web dashboard feature.
+      // If false, the app will run in the original console-only mode.
+      dashboard_settings: {
+        enable_dashboard: true,
+        auto_open_browser: true,
+      },
     };
     ```
+
+    Setting `enable_dashboard` to `false` allows you to run the tool in a "headless" or console-only mode, which is useful if you only need the JSON data files.
 
 2.  **Run the application:**
     ```bash
     npm start
     ```
 
-    Your default web browser will automatically open the Sensi-Stream Dashboard at `http://localhost:3000`. Your terminal will show detailed connection logs, while the dashboard will display the live analytical data.
+    If the dashboard is enabled, your default web browser will automatically open Sensi-Stream at `http://localhost:3000`. Your terminal will show detailed connection logs.
 
 ---
 
@@ -95,7 +105,7 @@ This project aims to evolve into a powerful tool for traders. The following feat
 
 ### How It Works
 
--   **`config.js`**: The main configuration file where you set which instruments and expiries to track.
+-   **`config.js`**: The main configuration file where you set which instruments and expiries to track, and control the web dashboard.
 -   **`src/index.js`**: The main application entry point. It reads `config.js`, starts the web server, and initiates the WebSocket connection.
 -   **`src/websocketClient.js`**: Manages the WebSocket lifecycle to Sensibull, subscriptions, and message handling. It now also broadcasts data to the dashboard.
 -   **`src/dataDecoder.js`**: Responsible for decoding the binary WebSocket messages into structured JSON.

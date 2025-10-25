@@ -9,11 +9,20 @@ module.exports = {
   track_banknifty: false,
 
   // --- Expiry Settings ---
-  // By default, we track the nearest weekly expiry.
-  // You can enable monthly expiries as well. The application will track the
-  // closest expiry date from all enabled types.
+  // The application will track the closest expiry from all enabled types.
   track_weekly_expiry: true,
   track_monthly_expiry: false,
+
+  // --- NEW: Dashboard Settings ---
+  dashboard_settings: {
+    // Set to true to enable the web dashboard feature.
+    // If false, the app will run in the original console-only mode.
+    enable_dashboard: true,
+
+    // If the dashboard is enabled, set to true to automatically open it
+    // in your default web browser when the application starts.
+    auto_open_browser: true,
+  },
 
   // --- Advanced Settings ---
   // You generally don't need to change these.

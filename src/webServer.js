@@ -1,5 +1,3 @@
-// src/webServer.js
-
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -11,8 +9,8 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-let latestData = {}; // Store the latest data in memory
 let latestDataFilePath = ''; // Keep track of the file to serve on initial load
+let isServerRunning = false; // <-- NEW: State variable to track server status
 
 // Serve static files from a 'public' directory
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -36,13 +34,18 @@ wss.on('connection', (ws) => {
 
 function startServer() {
     server.listen(PORT, () => {
+        isServerRunning = true; // <-- NEW: Set status to true when server starts
         console.log(`✅ Web dashboard is live at http://localhost:${PORT}`);
     });
 }
 
 // Function to broadcast new data to all connected web clients
 function broadcastData(newData, filePath) {
-    latestData = newData;
+    // --- NEW: Do nothing if the dashboard feature is disabled ---
+    if (!isServerRunning) {
+        return;
+    }
+    
     latestDataFilePath = filePath; // Update the path
     const dataString = JSON.stringify(newData, null, 2);
     wss.clients.forEach((client) => {
