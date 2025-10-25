@@ -11,23 +11,17 @@ const HEADERS = {
     'Origin': 'https://web.sensibull.com'
 };
 
-// --- NEW: Configuration for the retry mechanism ---
 const RETRY_CONFIG = {
-    maxRetries: 10,           // Maximum number of reconnection attempts.
-    initialDelay: 2000,       // Initial delay in ms (2 seconds).
-    maxDelay: 60000,          // Maximum delay in ms (1 minute).
+    maxRetries: 10,
+    initialDelay: 2000,
+    maxDelay: 60000,
 };
 
 let retryCount = 0;
 let noDataTimeout;
-let ws; // --- NEW: Make 'ws' accessible in the module scope for reconnection.
+let ws;
 
-/**
- * --- MODIFIED: Main function to start and manage the WebSocket connection. ---
- * This function now handles the entire lifecycle, including initial connection and reconnections.
- */
 function connect(instruments, expiries, config) {
-    // Ensure the data directory exists.
     const DATA_DIR = path.resolve(__dirname, '..', config.data_directory);
     if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -41,7 +35,7 @@ function connect(instruments, expiries, config) {
 
     ws.on('open', () => {
         console.log('✅ WebSocket connection established.');
-        retryCount = 0; // Reset retry counter on a successful connection.
+        retryCount = 0;
         clearTimeout(noDataTimeout);
 
         const targetExpiry = expiries[0];
@@ -51,7 +45,6 @@ function connect(instruments, expiries, config) {
             return;
         }
         
-        // Subscribe to all required data sources.
         subscribeToData(instruments, targetExpiry);
 
         noDataTimeout = setTimeout(() => {
@@ -60,16 +53,16 @@ function connect(instruments, expiries, config) {
     });
     
     ws.on('ping', () => {
-        // This is a frequent message, so it's commented out to keep the log clean.
-        // console.log('Received ping from server. Sending pong.');
         ws.pong();
     });
 
     ws.on('message', (binaryData) => {
         const message = decode(binaryData);
         
-        if (message) {
-            if (message.kind === 'OPTION_CHAIN') {
+        if (!message) return;
+
+        switch (message.kind) {
+            case 'OPTION_CHAIN':
                 clearTimeout(noDataTimeout);
                 const { payload, token, expiry } = message;
                 const { future_price, atm_strike, pcr, max_pain_strike, atm_iv } = payload;
@@ -80,40 +73,40 @@ function connect(instruments, expiries, config) {
                 );
                 
                 const filePath = path.join(DATA_DIR, `${token}-${expiry}.json`);
-                // --- SECURE HANDLING: Use try-catch for file operations ---
                 try {
                     fs.writeFileSync(filePath, JSON.stringify(payload, null, 2));
                 } catch (error) {
                     console.error(`❌ Failed to write data to file: ${filePath}`, error);
                 }
-            } else {
-                // To avoid clutter, we don't log every non-chain packet by default.
-                // console.log(`-> Received packet of type: ${message.kind}`);
-            }
+                break;
+
+            case 'QUOTE':
+                // --- FINAL VERSION: Log the full data from the quote packet ---
+                console.log(
+                    `⚡️ [${new Date().toLocaleTimeString()}] Quote for ${message.token}: ` +
+                    `LTP: ${message.ltp.toFixed(2)} | O: ${message.open} H: ${message.high} L: ${message.low} C: ${message.close}`
+                );
+                break;
+
+            // We no longer need to log the UNDERLYING_STATS packet as it's not the OHLC data.
+            // case 'UNDERLYING_STATS':
+            //     break;
         }
     });
 
-    // --- MODIFIED: Enhanced 'close' event handler to trigger reconnection. ---
     ws.on('close', (code, reason) => {
         console.log(`🔌 WebSocket connection closed. Code: ${code}, Reason: ${String(reason)}`);
         clearTimeout(noDataTimeout);
         handleReconnect(instruments, expiries, config);
     });
 
-    // --- MODIFIED: Enhanced 'error' event handler. ---
     ws.on('error', (error) => {
         console.error('❌ WebSocket error:', error.message);
         clearTimeout(noDataTimeout);
-        // The 'close' event will usually fire immediately after 'error', 
-        // so we let the 'close' handler manage the reconnection logic to avoid duplication.
-        ws.terminate(); // Forcefully close the connection to trigger the 'close' event.
+        ws.terminate();
     });
 }
 
-/**
- * --- NEW: Logic for sending subscriptions. ---
- * Extracted for clarity and reuse upon reconnection.
- */
 function subscribeToData(instruments, targetExpiry) {
     const subscriptions = [
         { "msgCommand": "subscribe", "dataSource": "underlying-stats", "brokerId": 1, "tokens": instruments, "underlyingExpiry": [], "uniqueId": "" },
@@ -127,9 +120,6 @@ function subscribeToData(instruments, targetExpiry) {
     });
 }
 
-/**
- * --- NEW: Secure reconnection handler with exponential backoff. ---
- */
 function handleReconnect(instruments, expiries, config) {
     if (retryCount >= RETRY_CONFIG.maxRetries) {
         console.error(`❌ Maximum retry limit (${RETRY_CONFIG.maxRetries}) reached. Giving up.`);
@@ -137,7 +127,6 @@ function handleReconnect(instruments, expiries, config) {
     }
 
     retryCount++;
-    // Exponential backoff formula: delay * 2^retries, with a cap.
     const delay = Math.min(RETRY_CONFIG.initialDelay * Math.pow(2, retryCount - 1), RETRY_CONFIG.maxDelay);
     
     console.log(`Retrying connection in ${delay / 1000} seconds... (Attempt ${retryCount}/${RETRY_CONFIG.maxRetries})`);
@@ -146,6 +135,5 @@ function handleReconnect(instruments, expiries, config) {
         connect(instruments, expiries, config);
     }, delay);
 }
-
 
 module.exports = { connect };
