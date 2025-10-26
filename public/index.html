@@ -6,7 +6,7 @@
     <title>Sensi-Stream Dashboard</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 0; }
-        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
         .header { text-align: center; padding-bottom: 20px; border-bottom: 1px solid #333; }
         h1 { margin: 0; }
         #status { padding: 10px 0; font-style: italic; color: #888; }
@@ -46,11 +46,43 @@
         .signal-box.neutral { border-color: #7f8c8d; }
         .signal-box.neutral h2 { color: #95a5a6; }
 
-        /* --- Utility --- */
+        /* --- Options Chain Table --- */
+        #options-chain-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        #options-chain-table thead th {
+            background-color: #2a2a2a;
+            padding: 12px 8px;
+            border: 1px solid #444;
+        }
+        #options-chain-table tbody td {
+            padding: 10px 8px;
+            border: 1px solid #333;
+            text-align: center;
+        }
+        #options-chain-table tbody tr:nth-child(even) { background-color: #1a1a1a; }
+        #options-chain-table .strike-header,
+        #options-chain-table .strike-data {
+             background-color: #101010;
+             font-weight: bold;
+        }
+        .atm-strike-row {
+            background-color: #3a3a2a !important; /* ATM Highlight */
+        }
+        .call-side { color: #2ecc71; }
+        .put-side { color: #e74c3c; }
+        .positive-change { color: #2ecc71; }
+        .negative-change { color: #e74c3c; }
+
+        /* --- Utility & Details Element--- */
         #copy-button { background-color: #333; color: #e0e0e0; border: 1px solid #555; padding: 10px 20px; margin-top: 15px; border-radius: 5px; cursor: pointer; font-size: 14px; transition: background-color 0.2s; }
         #copy-button:hover { background-color: #444; }
         .disclaimer { font-size: 12px; color: #777; text-align: center; margin-top: 20px; }
         details { background-color: #1e1e1e; border: 1px solid #333; border-radius: 8px; margin: 20px 0; }
+        details[open] { padding-bottom: 15px; }
         summary { padding: 15px; cursor: pointer; font-weight: bold; }
         pre { padding: 0 20px 20px 20px; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; color: #ccc; }
     </style>
@@ -92,16 +124,49 @@
             </div>
         </div>
         
+        <!-- Collapsible Options Chain Table -->
+        <details>
+            <summary id="options-chain-summary">View Options Chain</summary>
+            <table id="options-chain-table">
+                <thead>
+                    <tr>
+                        <th colspan="6" class="call-side">CALLS</th>
+                        <th class="strike-header">STRIKE</th>
+                        <th colspan="6" class="put-side">PUTS</th>
+                    </tr>
+                    <tr>
+                        <th class="call-side">OI</th>
+                        <th class="call-side">OI Chg %</th>
+                        <th class="call-side">Volume</th>
+                        <th class="call-side">IV</th>
+                        <th class="call-side">Chg</th>
+                        <th class="call-side">LTP</th>
+                        <th class="strike-header"></th>
+                        <th class="put-side">LTP</th>
+                        <th class="put-side">Chg</th>
+                        <th class="put-side">IV</th>
+                        <th class="put-side">Volume</th>
+                        <th class="put-side">OI Chg %</th>
+                        <th class="put-side">OI</th>
+                    </tr>
+                </thead>
+                <tbody id="options-chain-body">
+                    <!-- Data will be dynamically inserted here -->
+                </tbody>
+            </table>
+        </details>
+
+        <!-- Collapsible Raw JSON Data -->
+        <details>
+            <summary id="raw-json-summary">View Raw JSON Data</summary>
+            <button id="copy-button">Copy JSON to Clipboard</button>
+            <pre id="data-container">Loading initial data...</pre>
+        </details>
+        
         <p class="disclaimer">
             <strong>Disclaimer:</strong> This is not financial advice. The signal is generated automatically based on the Put-Call Ratio and should be used for informational purposes only.
         </p>
 
-        <!-- Collapsible Raw JSON Data -->
-        <details>
-            <summary>View Raw JSON Data</summary>
-            <button id="copy-button">Copy JSON to Clipboard</button>
-            <pre id="data-container">Loading initial data...</pre>
-        </details>
     </div>
 
     <script>
@@ -120,6 +185,9 @@
         const maxPainEl = document.getElementById('max-pain');
         const dataContainer = document.getElementById('data-container');
         const copyButton = document.getElementById('copy-button');
+        const optionsChainBody = document.getElementById('options-chain-body');
+        const optionsChainSummary = document.getElementById('options-chain-summary');
+        const rawJsonSummary = document.getElementById('raw-json-summary');
 
         // --- Signal Generation Logic ---
         function generateSignal(pcr, atmStrike) {
@@ -138,38 +206,94 @@
                 signalDetails.textContent = `Market appears balanced | ATM Strike: ${atmStrike}`;
             }
         }
+        
+        // --- Options Chain Rendering Logic ---
+        function renderOptionsChainTable(data) {
+            if (!data || !data.chain) {
+                optionsChainBody.innerHTML = '<tr><td colspan="13">Waiting for options chain data...</td></tr>';
+                return;
+            }
+
+            const { chain, atm_strike } = data;
+            const strikes = Object.keys(chain).sort((a, b) => Number(a) - Number(b));
+            
+            let tableHtml = '';
+
+            for (const strike of strikes) {
+                const isAtm = Number(strike) === atm_strike;
+                const rowClass = isAtm ? 'atm-strike-row' : '';
+                
+                const call = chain[strike].call || {};
+                const put = chain[strike].put || {};
+                const greeks = chain[strike].greeks || {};
+
+                const formatNum = (num, toLocale = true) => (num != null && num != 0) ? (toLocale ? num.toLocaleString('en-IN') : num) : '--';
+                const formatIv = (iv) => (iv != null && iv != 0) ? `${(iv * 100).toFixed(1)}%` : '--';
+                const formatOiChange = (oiChg) => (oiChg != null) ? `${(oiChg * 100).toFixed(1)}%` : '--';
+                const formatChange = (chg) => {
+                    if (chg == null) return '--';
+                    const value = chg.toFixed(2);
+                    const colorClass = chg > 0 ? 'positive-change' : (chg < 0 ? 'negative-change' : '');
+                    return `<span class="${colorClass}">${value}</span>`;
+                };
+
+                tableHtml += `
+                    <tr class="${rowClass}">
+                        <td class="call-side">${formatNum(call.oi)}</td>
+                        <td class="call-side">${formatOiChange(call.oi_change)}</td>
+                        <td class="call-side">${formatNum(call.volume)}</td>
+                        <td class="call-side">${formatIv(greeks.iv)}</td>
+                        <td class="call-side">${formatChange(call.absolute_price_change)}</td>
+                        <td class="call-side">${formatNum(call.last_price, false)}</td>
+                        <td class="strike-data">${strike}</td>
+                        <td class="put-side">${formatNum(put.last_price, false)}</td>
+                        <td class="put-side">${formatChange(put.absolute_price_change)}</td>
+                        <td class="put-side">${formatIv(greeks.iv)}</td>
+                        <td class="put-side">${formatNum(put.volume)}</td>
+                        <td class="put-side">${formatOiChange(put.oi_change)}</td>
+                        <td class="put-side">${formatNum(put.oi)}</td>
+                    </tr>
+                `;
+            }
+
+            optionsChainBody.innerHTML = tableHtml;
+        }
 
         // --- UI Update Function ---
         function updateDashboard(data) {
             if (!data || !data.future_price) {
-                // Handle cases where data is not yet available
                 dataContainer.textContent = JSON.stringify(data, null, 2);
                 return;
             }
             
             const { future_price, atm_strike, pcr, max_pain_strike, atm_iv } = data;
             
-            // Update metric cards
             futurePriceEl.textContent = future_price.toFixed(2);
             atmStrikeEl.textContent = atm_strike;
             pcrEl.textContent = pcr.toFixed(2);
             atmIvEl.textContent = `${(atm_iv * 100).toFixed(2)}%`;
             maxPainEl.textContent = max_pain_strike;
             
-            // Generate and display the signal
             generateSignal(pcr, atm_strike);
-            
-            // Update the raw data view
+            renderOptionsChainTable(data);
             dataContainer.textContent = JSON.stringify(data, null, 2);
         }
 
         // --- WebSocket Handlers ---
         const socket = new WebSocket(`ws://localhost:3000`);
-        socket.onopen = () => { statusDiv.textContent = '🟢 Connected. Waiting for live data...'; };
-        socket.onclose = () => { statusDiv.textContent = '🔴 Disconnected. Please restart the application.'; };
+        socket.onopen = () => {
+            statusDiv.innerHTML = '🟢 <strong>Status:</strong> Live Market Data';
+            optionsChainSummary.textContent = 'View Options Chain (Live Data)';
+            rawJsonSummary.textContent = 'View Raw JSON Data (Live Data)';
+        };
+        socket.onclose = () => {
+            statusDiv.innerHTML = `🔴 <strong>Status:</strong> Disconnected. Displaying last saved data. <strong>Restart the app for a live feed.</strong>`;
+            optionsChainSummary.textContent = 'View Options Chain (Off-Market Data)';
+            rawJsonSummary.textContent = 'View Raw JSON Data (Off-Market Data)';
+        };
         socket.onerror = () => { statusDiv.textContent = '🔴 Connection error.'; };
         socket.onmessage = (event) => {
-            statusDiv.innerHTML = `🟢 Live data updated at <strong>${new Date().toLocaleTimeString()}</strong>`;
+            statusDiv.innerHTML = `🟢 <strong>Status:</strong> Live data updated at <strong>${new Date().toLocaleTimeString()}</strong>`;
             const data = JSON.parse(event.data);
             updateDashboard(data);
         };
@@ -179,9 +303,16 @@
             try {
                 const response = await fetch('/api/data');
                 const data = await response.json();
+                
+                statusDiv.innerHTML = '⚪️ <strong>Status:</strong> Off-Market. Displaying last saved data.';
+                optionsChainSummary.textContent = 'View Options Chain (Off-Market Data)';
+                rawJsonSummary.textContent = 'View Raw JSON Data (Off-Market Data)';
+                
                 updateDashboard(data);
             } catch (error) {
-                dataContainer.textContent = 'Error loading initial data.';
+                dataContainer.textContent = 'Error loading initial data. Start the Sensi-Stream tool to begin.';
+                signalTitle.textContent = 'Error Loading Data';
+                signalDetails.textContent = 'Could not fetch initial data file.';
                 console.error(error);
             }
         }
