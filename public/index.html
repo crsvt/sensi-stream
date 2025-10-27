@@ -5,11 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sensi-Stream Dashboard</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 0; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-        .header { text-align: center; padding-bottom: 20px; border-bottom: 1px solid #333; }
-        h1 { margin: 0; }
-        #status { padding: 10px 0; font-style: italic; color: #888; }
+        /* --- NEW: Modern Look & Feel --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #090a0f;
+            background-image: radial-gradient(ellipse at top, #1b2735 0%, #090a0f 100%);
+            color: #e0e0e0;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .header-title h1 {
+            margin: 0;
+            font-size: 28px;
+            letter-spacing: 0.5px;
+        }
+        #status {
+            padding-top: 5px;
+            font-style: italic;
+            color: #888;
+            font-size: 14px;
+        }
+        .github-link svg {
+            width: 32px;
+            height: 32px;
+            fill: #aaa;
+            transition: fill 0.2s ease-in-out;
+        }
+        .github-link:hover svg {
+            fill: #fff;
+        }
         
         /* --- Dashboard Grid --- */
         .dashboard-grid {
@@ -18,27 +55,30 @@
             gap: 20px;
             margin: 20px 0;
         }
-        .metric-card {
-            background-color: #1e1e1e;
-            border: 1px solid #333;
-            border-radius: 8px;
+        .metric-card, .signal-box, details {
+            background-color: rgba(28, 28, 32, 0.75);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
             padding: 20px;
             text-align: center;
         }
-        .metric-card h3 { margin: 0 0 10px 0; color: #aaa; font-weight: normal; font-size: 16px; }
-        .metric-card p { margin: 0; font-size: 28px; font-weight: bold; }
+        .metric-card h3 {
+            margin: 0 0 10px 0;
+            color: #aaa;
+            font-weight: 500;
+            font-size: 16px;
+        }
+        .metric-card p {
+            margin: 0;
+            font-size: 28px;
+            font-weight: bold;
+        }
 
         /* --- Signal Box --- */
-        .signal-box {
-            background-color: #1e1e1e;
-            border: 1px solid #333;
-            border-radius: 8px;
-            padding: 25px;
-            text-align: center;
-            margin: 20px 0;
-        }
+        .signal-box { padding: 25px; }
         .signal-box h2 { margin: 0 0 10px 0; font-size: 24px; }
-        .signal-box p { margin: 0; font-size: 18px; }
+        .signal-box p { margin: 0; font-size: 18px; color: #ccc; }
         .signal-box.bullish { border-color: #27ae60; }
         .signal-box.bullish h2 { color: #2ecc71; }
         .signal-box.bearish { border-color: #c0392b; }
@@ -47,6 +87,9 @@
         .signal-box.neutral h2 { color: #95a5a6; }
 
         /* --- Options Chain Table --- */
+        details { margin: 20px 0; }
+        details[open] { padding-bottom: 15px; }
+        summary { padding: 15px; cursor: pointer; font-weight: bold; }
         #options-chain-table {
             width: 100%;
             border-collapse: collapse;
@@ -54,23 +97,23 @@
             font-size: 14px;
         }
         #options-chain-table thead th {
-            background-color: #2a2a2a;
+            background-color: rgba(42, 42, 42, 0.5);
             padding: 12px 8px;
-            border: 1px solid #444;
+            border: 1px solid rgba(255, 255, 255, 0.15);
         }
         #options-chain-table tbody td {
             padding: 10px 8px;
-            border: 1px solid #333;
+            border: 1px solid rgba(255, 255, 255, 0.1);
             text-align: center;
         }
-        #options-chain-table tbody tr:nth-child(even) { background-color: #1a1a1a; }
+        #options-chain-table tbody tr:nth-child(even) { background-color: rgba(26, 26, 26, 0.5); }
         #options-chain-table .strike-header,
         #options-chain-table .strike-data {
-             background-color: #101010;
+             background-color: rgba(16, 16, 16, 0.7);
              font-weight: bold;
         }
         .atm-strike-row {
-            background-color: #3a3a2a !important; /* ATM Highlight */
+            background-color: rgba(58, 58, 42, 0.8) !important;
         }
         .call-side { color: #2ecc71; }
         .put-side { color: #e74c3c; }
@@ -81,17 +124,22 @@
         #copy-button { background-color: #333; color: #e0e0e0; border: 1px solid #555; padding: 10px 20px; margin-top: 15px; border-radius: 5px; cursor: pointer; font-size: 14px; transition: background-color 0.2s; }
         #copy-button:hover { background-color: #444; }
         .disclaimer { font-size: 12px; color: #777; text-align: center; margin-top: 20px; }
-        details { background-color: #1e1e1e; border: 1px solid #333; border-radius: 8px; margin: 20px 0; }
-        details[open] { padding-bottom: 15px; }
-        summary { padding: 15px; cursor: pointer; font-weight: bold; }
-        pre { padding: 0 20px 20px 20px; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; color: #ccc; }
+        pre { background-color: rgba(0,0,0,0.3); border-radius: 6px; padding: 15px; font-size: 14px; white-space: pre-wrap; word-wrap: break-word; color: #ccc; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Sensi-Stream Dashboard</h1>
-            <div id="status">Connecting to server...</div>
+            <div class="header-title">
+                <h1>Sensi-Stream Dashboard</h1>
+                <div id="status">Connecting to server...</div>
+            </div>
+            <!-- NEW: GitHub Logo Link -->
+            <a href="https://github.com/crsvt/sensi-stream" target="_blank" rel="noopener noreferrer" class="github-link" title="View Source on GitHub">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+            </a>
         </div>
 
         <!-- Signal Box -->
@@ -170,10 +218,10 @@
     </div>
 
     <script>
+        // --- SCRIPT IS UNCHANGED, no need to copy this part if you're patching manually ---
         const PCR_BULLISH_THRESHOLD = 0.7;
         const PCR_BEARISH_THRESHOLD = 1.0;
 
-        // --- Element References ---
         const statusDiv = document.getElementById('status');
         const signalContainer = document.getElementById('signal-container');
         const signalTitle = document.getElementById('signal-title');
@@ -189,9 +237,8 @@
         const optionsChainSummary = document.getElementById('options-chain-summary');
         const rawJsonSummary = document.getElementById('raw-json-summary');
 
-        // --- Signal Generation Logic ---
         function generateSignal(pcr, atmStrike) {
-            signalContainer.className = 'signal-box'; // Reset class
+            signalContainer.className = 'signal-box';
             if (pcr < PCR_BULLISH_THRESHOLD) {
                 signalContainer.classList.add('bullish');
                 signalTitle.textContent = 'Bullish Sentiment';
@@ -207,26 +254,20 @@
             }
         }
         
-        // --- Options Chain Rendering Logic ---
         function renderOptionsChainTable(data) {
             if (!data || !data.chain) {
                 optionsChainBody.innerHTML = '<tr><td colspan="13">Waiting for options chain data...</td></tr>';
                 return;
             }
-
             const { chain, atm_strike } = data;
             const strikes = Object.keys(chain).sort((a, b) => Number(a) - Number(b));
-            
             let tableHtml = '';
-
             for (const strike of strikes) {
                 const isAtm = Number(strike) === atm_strike;
                 const rowClass = isAtm ? 'atm-strike-row' : '';
-                
                 const call = chain[strike].call || {};
                 const put = chain[strike].put || {};
                 const greeks = chain[strike].greeks || {};
-
                 const formatNum = (num, toLocale = true) => (num != null && num != 0) ? (toLocale ? num.toLocaleString('en-IN') : num) : '--';
                 const formatIv = (iv) => (iv != null && iv != 0) ? `${(iv * 100).toFixed(1)}%` : '--';
                 const formatOiChange = (oiChg) => (oiChg != null) ? `${(oiChg * 100).toFixed(1)}%` : '--';
@@ -236,88 +277,52 @@
                     const colorClass = chg > 0 ? 'positive-change' : (chg < 0 ? 'negative-change' : '');
                     return `<span class="${colorClass}">${value}</span>`;
                 };
-
-                tableHtml += `
-                    <tr class="${rowClass}">
-                        <td class="call-side">${formatNum(call.oi)}</td>
-                        <td class="call-side">${formatOiChange(call.oi_change)}</td>
-                        <td class="call-side">${formatNum(call.volume)}</td>
-                        <td class="call-side">${formatIv(greeks.iv)}</td>
-                        <td class="call-side">${formatChange(call.absolute_price_change)}</td>
-                        <td class="call-side">${formatNum(call.last_price, false)}</td>
-                        <td class="strike-data">${strike}</td>
-                        <td class="put-side">${formatNum(put.last_price, false)}</td>
-                        <td class="put-side">${formatChange(put.absolute_price_change)}</td>
-                        <td class="put-side">${formatIv(greeks.iv)}</td>
-                        <td class="put-side">${formatNum(put.volume)}</td>
-                        <td class="put-side">${formatOiChange(put.oi_change)}</td>
-                        <td class="put-side">${formatNum(put.oi)}</td>
-                    </tr>
-                `;
+                tableHtml += `<tr class="${rowClass}"><td class="call-side">${formatNum(call.oi)}</td><td class="call-side">${formatOiChange(call.oi_change)}</td><td class="call-side">${formatNum(call.volume)}</td><td class="call-side">${formatIv(greeks.iv)}</td><td class="call-side">${formatChange(call.absolute_price_change)}</td><td class="call-side">${formatNum(call.last_price, false)}</td><td class="strike-data">${strike}</td><td class="put-side">${formatNum(put.last_price, false)}</td><td class="put-side">${formatChange(put.absolute_price_change)}</td><td class="put-side">${formatIv(greeks.iv)}</td><td class="put-side">${formatNum(put.volume)}</td><td class="put-side">${formatOiChange(put.oi_change)}</td><td class="put-side">${formatNum(put.oi)}</td></tr>`;
             }
-
             optionsChainBody.innerHTML = tableHtml;
         }
 
-        // --- UI Update Function ---
         function updateDashboard(data) {
             if (!data || !data.future_price) {
-                // Handle cases where there's no valid data yet
                 dataContainer.textContent = JSON.stringify(data, null, 2);
                 signalTitle.textContent = 'Waiting for Data...';
                 signalDetails.textContent = 'No valid instrument data received yet.';
                 return;
             }
-            
             const { future_price, atm_strike, pcr, max_pain_strike, atm_iv } = data;
-            
             futurePriceEl.textContent = future_price.toFixed(2);
             atmStrikeEl.textContent = atm_strike;
             pcrEl.textContent = pcr.toFixed(2);
             atmIvEl.textContent = `${(atm_iv * 100).toFixed(2)}%`;
             maxPainEl.textContent = max_pain_strike;
-            
             generateSignal(pcr, atm_strike);
             renderOptionsChainTable(data);
             dataContainer.textContent = JSON.stringify(data, null, 2);
         }
 
-        // --- WebSocket Handlers ---
         const socket = new WebSocket(`ws://localhost:3000`);
-
-        socket.onopen = () => {
-            // State is handled by onmessage now to ensure data has arrived
-        };
-
         socket.onclose = () => {
             statusDiv.innerHTML = `🔴 <strong>Status:</strong> Disconnected. <strong>Restart the app for a live feed.</strong>`;
             optionsChainSummary.textContent = 'View Options Chain (Disconnected)';
             rawJsonSummary.textContent = 'View Raw JSON Data (Disconnected)';
         };
-        
         socket.onerror = () => { 
             statusDiv.textContent = '🔴 Connection error. Is the Sensi-Stream server running?';
         };
-
         socket.onmessage = (event) => {
-            // This is now the single source of truth for updates.
-            // The first message received will change the status from "Connecting" to "Live".
             statusDiv.innerHTML = `🟢 <strong>Status:</strong> Live data updated at <strong>${new Date().toLocaleTimeString()}</strong>`;
             optionsChainSummary.textContent = 'View Options Chain (Live Data)';
             rawJsonSummary.textContent = 'View Raw JSON Data (Live Data)';
-            
             const data = JSON.parse(event.data);
             updateDashboard(data);
         };
 
-        // --- Clipboard Logic ---
         copyButton.addEventListener('click', () => {
             navigator.clipboard.writeText(dataContainer.textContent).then(() => {
                 copyButton.textContent = '✅ Copied!';
                 setTimeout(() => { copyButton.textContent = 'Copy JSON to Clipboard'; }, 2000);
             }).catch(err => console.error('Failed to copy text', err));
         });
-
     </script>
 </body>
 </html>
