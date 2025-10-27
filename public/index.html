@@ -262,7 +262,10 @@
         // --- UI Update Function ---
         function updateDashboard(data) {
             if (!data || !data.future_price) {
+                // Handle cases where there's no valid data yet
                 dataContainer.textContent = JSON.stringify(data, null, 2);
+                signalTitle.textContent = 'Waiting for Data...';
+                signalDetails.textContent = 'No valid instrument data received yet.';
                 return;
             }
             
@@ -281,42 +284,31 @@
 
         // --- WebSocket Handlers ---
         const socket = new WebSocket(`ws://localhost:3000`);
+
         socket.onopen = () => {
-            statusDiv.innerHTML = '🟢 <strong>Status:</strong> Live Market Data';
+            // State is handled by onmessage now to ensure data has arrived
+        };
+
+        socket.onclose = () => {
+            statusDiv.innerHTML = `🔴 <strong>Status:</strong> Disconnected. <strong>Restart the app for a live feed.</strong>`;
+            optionsChainSummary.textContent = 'View Options Chain (Disconnected)';
+            rawJsonSummary.textContent = 'View Raw JSON Data (Disconnected)';
+        };
+        
+        socket.onerror = () => { 
+            statusDiv.textContent = '🔴 Connection error. Is the Sensi-Stream server running?';
+        };
+
+        socket.onmessage = (event) => {
+            // This is now the single source of truth for updates.
+            // The first message received will change the status from "Connecting" to "Live".
+            statusDiv.innerHTML = `🟢 <strong>Status:</strong> Live data updated at <strong>${new Date().toLocaleTimeString()}</strong>`;
             optionsChainSummary.textContent = 'View Options Chain (Live Data)';
             rawJsonSummary.textContent = 'View Raw JSON Data (Live Data)';
-        };
-        socket.onclose = () => {
-            statusDiv.innerHTML = `🔴 <strong>Status:</strong> Disconnected. Displaying last saved data. <strong>Restart the app for a live feed.</strong>`;
-            optionsChainSummary.textContent = 'View Options Chain (Off-Market Data)';
-            rawJsonSummary.textContent = 'View Raw JSON Data (Off-Market Data)';
-        };
-        socket.onerror = () => { statusDiv.textContent = '🔴 Connection error.'; };
-        socket.onmessage = (event) => {
-            statusDiv.innerHTML = `🟢 <strong>Status:</strong> Live data updated at <strong>${new Date().toLocaleTimeString()}</strong>`;
+            
             const data = JSON.parse(event.data);
             updateDashboard(data);
         };
-
-        // --- Initial Data Load ---
-        async function loadInitialData() {
-            try {
-                const response = await fetch('/api/data');
-                const data = await response.json();
-                
-                statusDiv.innerHTML = '⚪️ <strong>Status:</strong> Off-Market. Displaying last saved data.';
-                optionsChainSummary.textContent = 'View Options Chain (Off-Market Data)';
-                rawJsonSummary.textContent = 'View Raw JSON Data (Off-Market Data)';
-                
-                updateDashboard(data);
-            } catch (error) {
-                dataContainer.textContent = 'Error loading initial data. Start the Sensi-Stream tool to begin.';
-                signalTitle.textContent = 'Error Loading Data';
-                signalDetails.textContent = 'Could not fetch initial data file.';
-                console.error(error);
-            }
-        }
-        loadInitialData();
 
         // --- Clipboard Logic ---
         copyButton.addEventListener('click', () => {

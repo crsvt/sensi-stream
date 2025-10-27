@@ -9,17 +9,16 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-let latestDataFilePath = ''; // Keep track of the file to serve on initial load
-let isServerRunning = false; // <-- NEW: State variable to track server status
+let latestData = null; // In-memory cache for the latest data
+let isServerRunning = false;
 
 // Serve static files from a 'public' directory
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
-// API endpoint to get the last known data on page load
+// API endpoint now serves data from the in-memory cache
 app.get('/api/data', (req, res) => {
-    if (fs.existsSync(latestDataFilePath)) {
-        const data = fs.readFileSync(latestDataFilePath, 'utf-8');
-        res.json(JSON.parse(data));
+    if (latestData) {
+        res.json(latestData);
     } else {
         res.json({ message: "No data received yet. Waiting for the first update..." });
     }
@@ -27,27 +26,40 @@ app.get('/api/data', (req, res) => {
 
 wss.on('connection', (ws) => {
     console.log('✅ Web client connected to the dashboard.');
+
+    // --- NEW: Immediately send the latest data to the new client ---
+    if (latestData) {
+        console.log('--> Sending cached data to newly connected client.');
+        ws.send(JSON.stringify(latestData));
+    }
+
     ws.on('close', () => {
         console.log('🔌 Web client disconnected.');
     });
 });
 
-function startServer() {
+function startServer(callback) {
     server.listen(PORT, () => {
-        isServerRunning = true; // <-- NEW: Set status to true when server starts
+        isServerRunning = true;
         console.log(`✅ Web dashboard is live at http://localhost:${PORT}`);
+        if (callback) {
+            callback();
+        }
     });
 }
 
 // Function to broadcast new data to all connected web clients
 function broadcastData(newData, filePath) {
-    // --- NEW: Do nothing if the dashboard feature is disabled ---
     if (!isServerRunning) {
         return;
     }
     
-    latestDataFilePath = filePath; // Update the path
-    const dataString = JSON.stringify(newData, null, 2);
+    // Update the in-memory cache
+    latestData = newData; 
+    
+    const dataString = JSON.stringify(newData); // No need for pretty-printing here
+    
+    // Broadcast to all currently connected clients
     wss.clients.forEach((client) => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(dataString);
