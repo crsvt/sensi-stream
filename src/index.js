@@ -9,10 +9,17 @@ if (config.dashboard_settings && config.dashboard_settings.enable_dashboard) {
     ({ startServer } = require('./webServer'));
 }
 
-/**
- * Initializes the WebSocket client and connects to the data feed.
- */
-function startClient() {
+function main() {
+    console.log("🚀 Starting Sensi-Stream...");
+
+    // --- NEW: Conditionally start the web server ---
+    if (config.dashboard_settings && config.dashboard_settings.enable_dashboard) {
+        startServer();
+        console.log("-> Configuration: Web Dashboard is ENABLED.");
+    } else {
+        console.log("-> Configuration: Web Dashboard is DISABLED. Running in console-only mode.");
+    }
+
     // --- Build the list of instruments to track from the config ---
     const instrumentsToTrack = [];
     if (config.track_nifty) {
@@ -41,33 +48,12 @@ function startClient() {
 
     // --- Pass the config to the connect function ---
     connect(instrumentsToTrack, expiries, config);
-}
 
-/**
- * Main application entry point.
- */
-function main() {
-    console.log("🚀 Starting Sensi-Stream...");
-
-    if (config.dashboard_settings && config.dashboard_settings.enable_dashboard) {
-        console.log("-> Configuration: Web Dashboard is ENABLED.");
-        
-        // Start the server and provide a callback to run after it's live
-        startServer(() => {
-            // Now that the server is ready, start the WebSocket client
-            startClient();
-
-            // Conditionally open the browser
-            if (config.dashboard_settings.auto_open_browser) {
-                setTimeout(() => {
-                    open('http://localhost:3000');
-                }, 1500); // Small delay to allow server to start
-            }
-        });
-    } else {
-        console.log("-> Configuration: Web Dashboard is DISABLED. Running in console-only mode.");
-        // If dashboard is off, run the client immediately
-        startClient();
+    // --- NEW: Conditionally open the browser ---
+    if (config.dashboard_settings && config.dashboard_settings.enable_dashboard && config.dashboard_settings.auto_open_browser) {
+        setTimeout(() => {
+            open('http://localhost:3000');
+        }, 1500); // Small delay to allow server to start
     }
 }
 

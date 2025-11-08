@@ -1,8 +1,12 @@
+// src/websocketClient.js
+
 const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
 const { decode } = require('./dataDecoder');
-const { broadcastData } = require('./webServer'); // <-- NEW: Import broadcast function
+const { broadcastData } = require('./webServer'); // Removed broadcastAIAnalysis as it's no longer called here
+const config = require('../config');
+const { setData } = require('./dataStore');
 
 const WEBSOCKET_URL = 'https://wsrelay.sensibull.com/broker/1?consumerType=platform_pro';
 
@@ -21,6 +25,7 @@ const RETRY_CONFIG = {
 let retryCount = 0;
 let noDataTimeout;
 let ws;
+let previousPayload = null;
 
 function connect(instruments, expiries, config) {
     const DATA_DIR = path.resolve(__dirname, '..', config.data_directory);
@@ -38,16 +43,13 @@ function connect(instruments, expiries, config) {
         console.log('✅ WebSocket connection established.');
         retryCount = 0;
         clearTimeout(noDataTimeout);
-
         const targetExpiry = expiries[0];
         if (!targetExpiry) {
             console.error('❌ No expiry date found. Exiting.');
             ws.close();
             return;
         }
-        
         subscribeToData(instruments, targetExpiry);
-
         noDataTimeout = setTimeout(() => {
             console.warn('🕒 No option chain data received after 30 seconds. Is the market open?');
         }, 30000);
@@ -57,10 +59,18 @@ function connect(instruments, expiries, config) {
         ws.pong();
     });
 
-    ws.on('message', (binaryData) => {
+    ws.on('message', async (binaryData) => {
         const message = decode(binaryData);
-        
         if (!message) return;
+
+        const istTimeOptions = {
+            timeZone: 'Asia/Kolkata',
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        };
+        const timestamp = new Date().toLocaleString('en-IN', istTimeOptions);
 
         switch (message.kind) {
             case 'OPTION_CHAIN':
@@ -69,15 +79,21 @@ function connect(instruments, expiries, config) {
                 const { future_price, atm_strike, pcr, max_pain_strike, atm_iv } = payload;
                 
                 console.log(
-                    `✅ [${new Date().toLocaleTimeString()}] Chain for ${token}: ` +
+                    `✅ [${timestamp} IST] Chain for ${token}: ` +
                     `Future: ${future_price}, ATM: ${atm_strike}, IV: ${(atm_iv * 100).toFixed(2)}%, PCR: ${pcr}, Max Pain: ${max_pain_strike}`
                 );
                 
+                setData(payload, previousPayload, expiry);
+                previousPayload = payload;
+
                 const filePath = path.join(DATA_DIR, `${token}-${expiry}.json`);
                 try {
                     fs.writeFileSync(filePath, JSON.stringify(payload, null, 2));
-                    // --- NEW: Broadcast the new data to the web dashboard ---
                     broadcastData(payload, filePath);
+                    
+                    // --- AUTOMATIC AI ANALYSIS TRIGGER HAS BEEN REMOVED ---
+                    // The AI will now only run when manually triggered from the dashboard.
+
                 } catch (error) {
                     console.error(`❌ Failed to write data to file: ${filePath}`, error);
                 }
@@ -85,7 +101,7 @@ function connect(instruments, expiries, config) {
 
             case 'QUOTE':
                 console.log(
-                    `⚡️ [${new Date().toLocaleTimeString()}] Quote for ${message.token}: ` +
+                    `⚡️ [${timestamp} IST] Quote for ${message.token}: ` +
                     `LTP: ${message.ltp.toFixed(2)} | O: ${message.open} H: ${message.high} L: ${message.low} C: ${message.close}`
                 );
                 break;
@@ -111,7 +127,6 @@ function subscribeToData(instruments, targetExpiry) {
         { "msgCommand": "subscribe", "dataSource": "quote-binary", "brokerId": 1, "tokens": instruments, "underlyingExpiry": [], "uniqueId": "" },
         { "msgCommand": "subscribe", "dataSource": "option-chain", "brokerId": 1, "tokens": [], "underlyingExpiry": instruments.map(inst => ({ "underlying": inst, "expiry": targetExpiry })), "uniqueId": "" }
     ];
-
     subscriptions.forEach(sub => {
         console.log(`--> Sending '${sub.dataSource}' subscription for expiry ${targetExpiry}...`);
         ws.send(JSON.stringify(sub));
@@ -123,12 +138,9 @@ function handleReconnect(instruments, expiries, config) {
         console.error(`❌ Maximum retry limit (${RETRY_CONFIG.maxRetries}) reached. Giving up.`);
         return;
     }
-
     retryCount++;
     const delay = Math.min(RETRY_CONFIG.initialDelay * Math.pow(2, retryCount - 1), RETRY_CONFIG.maxDelay);
-    
     console.log(`Retrying connection in ${delay / 1000} seconds... (Attempt ${retryCount}/${RETRY_CONFIG.maxRetries})`);
-
     setTimeout(() => {
         connect(instruments, expiries, config);
     }, delay);
